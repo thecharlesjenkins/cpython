@@ -821,6 +821,9 @@ validate_stmt(struct validator *state, stmt_ty stmt)
         ret = validate_expr(state, stmt->v.Assert.test, Load) &&
             (!stmt->v.Assert.msg || validate_expr(state, stmt->v.Assert.msg, Load));
         break;
+    case Homogeneous_kind:
+        ret =  validate_expr(state, stmt->v.Homogeneous.color, Load);
+        break;
     case Import_kind:
         ret = validate_nonempty_seq(stmt->v.Import.names, "names", "Import");
         break;

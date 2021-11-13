@@ -78,6 +78,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->GtE_type);
     Py_CLEAR(state->Gt_singleton);
     Py_CLEAR(state->Gt_type);
+    Py_CLEAR(state->Homogeneous_type);
     Py_CLEAR(state->IfExp_type);
     Py_CLEAR(state->If_type);
     Py_CLEAR(state->ImportFrom_type);
@@ -182,6 +183,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->cls);
     Py_CLEAR(state->cmpop_type);
     Py_CLEAR(state->col_offset);
+    Py_CLEAR(state->color);
     Py_CLEAR(state->comparators);
     Py_CLEAR(state->comprehension_type);
     Py_CLEAR(state->context_expr);
@@ -289,6 +291,7 @@ static int init_identifiers(struct ast_state *state)
     if ((state->cause = PyUnicode_InternFromString("cause")) == NULL) return 0;
     if ((state->cls = PyUnicode_InternFromString("cls")) == NULL) return 0;
     if ((state->col_offset = PyUnicode_InternFromString("col_offset")) == NULL) return 0;
+    if ((state->color = PyUnicode_InternFromString("color")) == NULL) return 0;
     if ((state->comparators = PyUnicode_InternFromString("comparators")) == NULL) return 0;
     if ((state->context_expr = PyUnicode_InternFromString("context_expr")) == NULL) return 0;
     if ((state->conversion = PyUnicode_InternFromString("conversion")) == NULL) return 0;
@@ -489,6 +492,9 @@ static const char * const Try_fields[]={
 static const char * const Assert_fields[]={
     "test",
     "msg",
+};
+static const char * const Homogeneous_fields[]={
+    "color",
 };
 static const char * const Import_fields[]={
     "names",
@@ -1140,6 +1146,7 @@ init_types(struct ast_state *state)
         "     | Raise(expr? exc, expr? cause)\n"
         "     | Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)\n"
         "     | Assert(expr test, expr? msg)\n"
+        "     | Homogeneous(expr color)\n"
         "     | Import(alias* names)\n"
         "     | ImportFrom(identifier? module, alias* names, int? level)\n"
         "     | Global(identifier* names)\n"
@@ -1260,6 +1267,10 @@ init_types(struct ast_state *state)
     if (!state->Assert_type) return 0;
     if (PyObject_SetAttr(state->Assert_type, state->msg, Py_None) == -1)
         return 0;
+    state->Homogeneous_type = make_type(state, "Homogeneous", state->stmt_type,
+                                        Homogeneous_fields, 1,
+        "Homogeneous(expr color)");
+    if (!state->Homogeneous_type) return 0;
     state->Import_type = make_type(state, "Import", state->stmt_type,
                                    Import_fields, 1,
         "Import(alias* names)");
@@ -2395,6 +2406,28 @@ _PyAST_Assert(expr_ty test, expr_ty msg, int lineno, int col_offset, int
     p->kind = Assert_kind;
     p->v.Assert.test = test;
     p->v.Assert.msg = msg;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+stmt_ty
+_PyAST_Homogeneous(expr_ty color, int lineno, int col_offset, int end_lineno,
+                   int end_col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!color) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'color' is required for Homogeneous");
+        return NULL;
+    }
+    p = (stmt_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = Homogeneous_kind;
+    p->v.Homogeneous.color = color;
     p->lineno = lineno;
     p->col_offset = col_offset;
     p->end_lineno = end_lineno;
@@ -4061,6 +4094,16 @@ ast2obj_stmt(struct ast_state *state, void* _o)
         value = ast2obj_expr(state, o->v.Assert.msg);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->msg, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case Homogeneous_kind:
+        tp = (PyTypeObject *)state->Homogeneous_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(state, o->v.Homogeneous.color);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->color, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -7522,6 +7565,36 @@ obj2ast_stmt(struct ast_state *state, PyObject* obj, stmt_ty* out, PyArena*
         }
         *out = _PyAST_Assert(test, msg, lineno, col_offset, end_lineno,
                              end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    tp = state->Homogeneous_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty color;
+
+        if (_PyObject_LookupAttr(obj, state->color, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"color\" missing from Homogeneous");
+            return 1;
+        }
+        else {
+            int res;
+            if (Py_EnterRecursiveCall(" while traversing 'Homogeneous' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &color, arena);
+            Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_Homogeneous(color, lineno, col_offset, end_lineno,
+                                  end_col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -11688,6 +11761,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Assert", state->Assert_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "Homogeneous", state->Homogeneous_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Import", state->Import_type) < 0) {

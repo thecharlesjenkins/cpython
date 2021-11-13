@@ -64,6 +64,7 @@ struct ast_state {
     PyObject *GtE_type;
     PyObject *Gt_singleton;
     PyObject *Gt_type;
+    PyObject *Homogeneous_type;
     PyObject *IfExp_type;
     PyObject *If_type;
     PyObject *ImportFrom_type;
@@ -168,6 +169,7 @@ struct ast_state {
     PyObject *cls;
     PyObject *cmpop_type;
     PyObject *col_offset;
+    PyObject *color;
     PyObject *comparators;
     PyObject *comprehension_type;
     PyObject *context_expr;

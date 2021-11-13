@@ -120,6 +120,7 @@ simple_stmt[stmt_ty] (memo):
     | &'del' del_stmt
     | &'yield' yield_stmt
     | &'assert' assert_stmt
+    | &'homogeneous' homogeneous_stmt
     | 'break' { _PyAST_Break(EXTRA) }
     | 'continue' { _PyAST_Continue(EXTRA) }
     | &'global' global_stmt
@@ -193,6 +194,8 @@ del_stmt[stmt_ty]:
 yield_stmt[stmt_ty]: y=yield_expr { _PyAST_Expr(y, EXTRA) }
 
 assert_stmt[stmt_ty]: 'assert' a=expression b=[',' z=expression { z }] { _PyAST_Assert(a, b, EXTRA) }
+
+homogeneous_stmt[stmt_ty]: 'homogeneous' a=expression { _PyAST_Homogeneous(a, EXTRA) }
 
 import_stmt[stmt_ty]: import_name | import_from
 

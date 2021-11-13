@@ -3540,6 +3540,21 @@ compiler_assert(struct compiler *c, stmt_ty s)
 }
 
 static int
+compiler_homogeneous(struct compiler *c, stmt_ty s)
+{
+    basicblock *end;
+
+    end = compiler_new_block(c);
+    if (end == NULL)
+        return 0;
+    if (!compiler_jump_if(c, s->v.Homogeneous.color, end, 1))
+        return 0;
+    compiler_use_next_block(c, end);
+
+    return 1;
+}
+
+static int
 compiler_visit_stmt_expr(struct compiler *c, expr_ty value)
 {
     if (c->c_interactive && c->c_nestlevel <= 1) {
@@ -3618,6 +3633,8 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_try(c, s);
     case Assert_kind:
         return compiler_assert(c, s);
+    case Homogeneous_kind:
+        return compiler_homogeneous(c, s);
     case Import_kind:
         return compiler_import(c, s);
     case ImportFrom_kind:

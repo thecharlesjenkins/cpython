@@ -909,6 +909,10 @@ class _Unparser(NodeVisitor):
             self.write(", ")
             self.traverse(node.msg)
 
+    def visit_Homogeneous(self, node):
+        self.fill("homogeneous ")
+        self.traverse(node.color)
+
     def visit_Global(self, node):
         self.fill("global ")
         self.interleave(lambda: self.write(", "), self.write, node.names)
